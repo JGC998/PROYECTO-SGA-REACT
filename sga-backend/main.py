@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from fastapi.middleware.cors import CORSMiddleware # IMPORTANTE
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from database import SessionLocal
+
 import models
 
 from pydantic import BaseModel
@@ -24,6 +26,12 @@ def get_db():
     finally:
         db.close()
 
+# Esquema para validar los datos que vienen del frontend
+class ProductoCreate(BaseModel):
+    sku: str
+    nombre: str
+    stock_minimo: int
+
 @app.get("/productos")
 def listar_productos(db: Session = Depends(get_db)):
     productos = db.query(models.Producto).all()
@@ -43,10 +51,14 @@ def listar_productos(db: Session = Depends(get_db)):
 
 @app.post("/productos")
 def crear_producto(item: ProductoCreate, db: Session = Depends(get_db)):
+    # Comprobar si existe ANTES de hacer el add
+    db_prod = db.query(models.Producto).filter(models.Producto.sku == item.sku).first()
+    if db_prod:
+        raise HTTPException(status_code=400, detail="Ese SKU ya existe en el almacén")
+    
     nuevo_prod = models.Producto(sku=item.sku, nombre=item.nombre, stock_minimo=item.stock_minimo)
     db.add(nuevo_prod)
     db.commit()
-    db.refresh(nuevo_prod)
     return nuevo_prod
 
 @app.delete("/productos/{producto_id}")
@@ -84,5 +96,18 @@ def actualizar_cantidad(producto_id: int, cambio: int, db: Session = Depends(get
     item_stock.cantidad += cambio
     if item_stock.cantidad < 0: item_stock.cantidad = 0
     
+    db.commit()
+    return {"nueva_cantidad": item_stock.cantidad}
+
+
+@app.put("/stock/{producto_id}/fijar")
+def fijar_cantidad(producto_id: int, cantidad: int, db: Session = Depends(get_db)):
+    item_stock = db.query(models.Stock).filter(models.Stock.producto_id == producto_id).first()
+    
+    if not item_stock:
+        item_stock = models.Stock(producto_id=producto_id, ubicacion_id=1, cantidad=0)
+        db.add(item_stock)
+
+    item_stock.cantidad = max(0, cantidad) # Evitamos negativos
     db.commit()
     return {"nueva_cantidad": item_stock.cantidad}
