@@ -1,5 +1,16 @@
 import api from './axios'
 
-export const getResumen = () => api.get('/reportes/resumen')
+export const getResumen = async () => {
+    const response = await api.get('/reportes/resumen')
+    return response.data
+}
 
-export const getStockBajo = () => api.get('/reportes/stock-bajo')
+export const getMovimientosPorDia = async (dias = 7) => {
+    const response = await api.get(`/reportes/movimientos-por-dia?dias=${dias}`)
+    return response.data
+}
+
+export const getOcupacionZonas = async () => {
+    const response = await api.get('/reportes/ocupacion-zonas')
+    return response.data
+}

@@ -8,3 +8,8 @@ export const getMovimientos = (params = {}) => {
     if (params.tipo) query.append('tipo', params.tipo)
     return api.get(`/movimientos?${query.toString()}`)
 }
+
+export const crearMovimientoInterno = async (data) => {
+    const response = await api.post('/movimientos/interno', data)
+    return response.data
+}

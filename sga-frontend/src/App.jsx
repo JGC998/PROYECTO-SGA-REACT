@@ -1,44 +1,48 @@
 import { Toaster } from 'react-hot-toast'
-import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom'
-import PanelInicio from './components/inicio/PanelInicio'
-import GestionInventario from './components/productos/GestionInventario'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import AppLayout from './components/layout/AppLayout'
+import RutaProtegida from './components/comunes/RutaProtegida'
+import { AuthProvider } from './context/AuthContext'
+import Login from './components/auth/Login'
+import Dashboard from './components/dashboard/Dashboard'
+import GestionStock from './components/stock/GestionStock'
 import Movimientos from './components/movimientos/Movimientos'
-import GestionUbicaciones from './components/ubicaciones/GestionUbicaciones'
-import './App.css'
+import GestionProductos from './components/productos/GestionProductos'
+import GestionAlmacenes from './components/almacenes/GestionAlmacenes'
+import Recepciones from './components/recepciones/Recepciones'
+import Picking from './components/operaciones/Picking'
+import Expediciones from './components/expediciones/Expediciones'
+import Inventarios from './components/inventarios/Inventarios'
+import './index.css'
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="container">
+      <AuthProvider>
         <Toaster position="top-right" />
+        <Routes>
+          {/* Ruta pública */}
+          <Route path="/login" element={<Login />} />
 
-        <header className="main-header">
-          <NavLink to="/" className="logo-link">
-            <h1>🏠 SGA Chasito</h1>
-          </NavLink>
-          <nav className="nav-links">
-            <NavLink to="/inventario" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
-              📦 Inventario
-            </NavLink>
-            <NavLink to="/movimientos" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
-              🔄 Movimientos
-            </NavLink>
-            <NavLink to="/ubicaciones" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
-              📍 Ubicaciones
-            </NavLink>
-          </nav>
-        </header>
+          {/* Rutas protegidas dentro del Layout */}
+          <Route path="/" element={<RutaProtegida><AppLayout /></RutaProtegida>}>
+            <Route index element={<Dashboard />} />
+            <Route path="inventario" element={<GestionStock />} />
+            <Route path="productos" element={<GestionProductos />} />
+            <Route path="movimientos" element={<Movimientos />} />
+            <Route path="ubicaciones" element={<GestionAlmacenes />} />
+            
+            {/* Phase 3 */}
+            <Route path="recepciones" element={<Recepciones />} />
+            <Route path="picking" element={<Picking />} />
+            <Route path="expediciones" element={<Expediciones />} />
+            <Route path="inventarios" element={<Inventarios />} />
+          </Route>
 
-        <main>
-          <Routes>
-            <Route path="/" element={<PanelInicio />} />
-            <Route path="/inventario" element={<GestionInventario />} />
-            <Route path="/movimientos" element={<Movimientos />} />
-            <Route path="/ubicaciones" element={<GestionUbicaciones />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

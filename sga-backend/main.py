@@ -5,7 +5,11 @@ import os
 
 from database import engine
 import models
-from routers import productos, stock, movimientos, ubicaciones, reportes
+from routers import (
+    productos, stock, movimientos, ubicaciones, reportes,
+    auth, usuarios, categorias, proveedores, almacenes, recepciones,
+    picking, expediciones, inventarios, auditoria
+)
 
 load_dotenv()
 
@@ -30,11 +34,21 @@ app.add_middleware(
 )
 
 # Registrar todos los routers
+app.include_router(auth.router)
+app.include_router(usuarios.router)
+app.include_router(categorias.router)
+app.include_router(proveedores.router)
+app.include_router(almacenes.router)
 app.include_router(productos.router)
 app.include_router(stock.router)
 app.include_router(movimientos.router)
 app.include_router(ubicaciones.router)
 app.include_router(reportes.router)
+app.include_router(recepciones.router)
+app.include_router(picking.router)
+app.include_router(expediciones.router)
+app.include_router(inventarios.router)
+app.include_router(auditoria.router)
 
 
 @app.get("/", tags=["Root"])

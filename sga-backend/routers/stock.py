@@ -82,3 +82,41 @@ def fijar_cantidad(producto_id: int, cantidad: int, motivo: str = None,
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+@router.get("/mapa/{zona_id}")
+def obtener_mapa_zona(zona_id: int, db: Session = Depends(get_db)):
+    """
+    Devuelve las ubicaciones de una zona con el nivel de ocupación actual.
+    Por simplicidad, asume que si hay items en el stock vinculados a esa ubicación, esa es la ocupación.
+    """
+    zona = db.query(models.Zona).filter(models.Zona.id == zona_id).first()
+    if not zona:
+        raise HTTPException(status_code=404, detail="Zona no encontrada")
+
+    ubicaciones = db.query(models.Ubicacion).filter(models.Ubicacion.zona_id == zona_id).all()
+    
+    resultado = {
+        "zona_id": zona.id,
+        "zona_nombre": zona.nombre,
+        "ubicaciones": []
+    }
+
+    for u in ubicaciones:
+        stock_en_ubicacion = db.query(models.Stock).filter(models.Stock.ubicacion_id == u.id).all()
+        cantidad_total = sum(s.cantidad for s in stock_en_ubicacion)
+        
+        capacidad = u.capacidad_max if u.capacidad_max else 100 # Default si no está definido
+        porcentaje = round((cantidad_total / capacidad) * 100, 2) if capacidad > 0 else 0
+        
+        resultado["ubicaciones"].append({
+            "id": u.id,
+            "codigo": u.codigo,
+            "capacidad_max": capacidad,
+            "cantidad_actual": cantidad_total,
+            "ocupacion_porcentaje": min(100, porcentaje),
+            "estado": "lleno" if porcentaje >= 100 else "medio" if porcentaje >= 50 else "vacio",
+            "activo": u.activo
+        })
+        
+    return resultado

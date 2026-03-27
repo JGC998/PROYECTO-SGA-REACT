@@ -1,7 +1,9 @@
 import api from './axios'
 
-export const getProductos = (skip = 0, limit = 50) =>
-    api.get(`/productos?skip=${skip}&limit=${limit}`)
+export const getProductos = (skip = 0, limit = 50, filtros = {}) => {
+    const query = new URLSearchParams({ skip, limit, ...filtros }).toString()
+    return api.get(`/productos/?${query}`)
+}
 
 export const createProducto = (data) => api.post('/productos', data)
 

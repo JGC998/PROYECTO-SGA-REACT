@@ -29,8 +29,11 @@ def crear_ubicacion(item: UbicacionCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Ese código de ubicación ya existe")
 
     nueva = models.Ubicacion(
+        zona_id=item.zona_id,
         codigo=item.codigo.strip(),
         descripcion=item.descripcion,
+        capacidad_max=item.capacidad_max,
+        activo=item.activo
     )
     db.add(nueva)
     db.commit()
