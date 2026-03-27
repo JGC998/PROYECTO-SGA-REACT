@@ -84,13 +84,124 @@ tr:hover {
 
 .btn-delete {
   background: #e74c3c;
-  /* Rojo */
   padding: 5px 10px;
   font-size: 0.8rem;
 }
 
 .btn-delete:hover {
   background: #c0392b;
+}
+
+.btn-edit {
+  background: #2980b9;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-edit:hover {
+  background: #1f6391;
+}
+
+.btn-stock {
+  background: #555;
+  padding: 4px 10px;
+  font-size: 1rem;
+}
+
+.btn-stock:hover {
+  background: var(--primary);
+}
+
+/* Badges de tipo de movimiento */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.badge-entrada {
+  background: rgba(39, 174, 96, 0.25);
+  color: #2ecc71;
+  border: 1px solid #27ae60;
+}
+
+.badge-salida {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid #c0392b;
+}
+
+/* Paginación */
+.paginacion {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.paginacion button {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  background: #383838;
+  border: 1px solid #555;
+}
+
+.paginacion button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Filtros de movimientos */
+.filtros-movimientos {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-filtro {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  background: #383838;
+  border: 1px solid #555;
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-filtro:hover {
+  background: #444;
+}
+
+.btn-filtro.active {
+  background: var(--primary);
+  color: #111;
+  border-color: var(--primary);
+  font-weight: bold;
+}
+
+/* Estados de carga y error */
+.estado-info {
+  text-align: center;
+  color: #aaa;
+  padding: 30px;
+  font-size: 1.1rem;
+}
+
+.estado-error {
+  text-align: center;
+  color: #e74c3c;
+  padding: 30px;
+  font-size: 1rem;
+  background: rgba(231, 76, 60, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
 .grid-modulos {
@@ -133,6 +244,49 @@ tr:hover {
   align-items: center;
   border-bottom: 1px solid #444;
   margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.logo-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.logo-link h1 {
+  margin: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+  cursor: pointer;
+}
+
+.nav-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-btn {
+  padding: 7px 14px;
+  background: #383838;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.nav-btn:hover {
+  background: #444;
+  border-color: var(--primary);
+}
+
+.nav-btn.active {
+  background: var(--primary);
+  color: #111;
+  border-color: var(--primary);
+  font-weight: bold;
 }
 
 .controles-inventario {

@@ -1,31 +1,45 @@
-import { useState } from 'react'
 import { Toaster } from 'react-hot-toast'
+import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom'
 import PanelInicio from './components/inicio/PanelInicio'
 import GestionInventario from './components/productos/GestionInventario'
+import Movimientos from './components/movimientos/Movimientos'
+import GestionUbicaciones from './components/ubicaciones/GestionUbicaciones'
 import './App.css'
 
 function App() {
-  const [seccion, setSeccion] = useState('inicio')
-
   return (
-    <div className="container">
-      <Toaster position="top-right" />
+    <BrowserRouter>
+      <div className="container">
+        <Toaster position="top-right" />
 
-      {/* Barra de navegación superior simple */}
-      <header className="main-header">
-        <h1 onClick={() => setSeccion('inicio')} style={{ cursor: 'pointer' }}>
-          🏠 SGA Chasito
-        </h1>
-        {seccion !== 'inicio' && (
-          <button onClick={() => setSeccion('inicio')}>Volver al Panel</button>
-        )}
-      </header>
+        <header className="main-header">
+          <NavLink to="/" className="logo-link">
+            <h1>🏠 SGA Chasito</h1>
+          </NavLink>
+          <nav className="nav-links">
+            <NavLink to="/inventario" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
+              📦 Inventario
+            </NavLink>
+            <NavLink to="/movimientos" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
+              🔄 Movimientos
+            </NavLink>
+            <NavLink to="/ubicaciones" className={({ isActive }) => isActive ? 'nav-btn active' : 'nav-btn'}>
+              📍 Ubicaciones
+            </NavLink>
+          </nav>
+        </header>
 
-      <main>
-        {seccion === 'inicio' && <PanelInicio alNavegar={setSeccion} />}
-        {seccion === 'inventario' && <GestionInventario />}
-      </main>
-    </div>
+        <main>
+          <Routes>
+            <Route path="/" element={<PanelInicio />} />
+            <Route path="/inventario" element={<GestionInventario />} />
+            <Route path="/movimientos" element={<Movimientos />} />
+            <Route path="/ubicaciones" element={<GestionUbicaciones />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   )
 }
 
