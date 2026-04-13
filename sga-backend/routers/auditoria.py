@@ -13,7 +13,7 @@ def get_db():
     finally:
         db.close()
 
-def log_auditoria(db: Session, usuario_id: int, accion: str, entidad: str, entidad_id: int = None, antes: str = None, despues: str = None, ip: str = None):
+def log_auditoria(db: Session, usuario_id: int, accion: str, entidad: str, entidad_id: str = None, antes: str = None, despues: str = None, ip: str = None):
     log = models.AuditoriaLog(
         usuario_id=usuario_id,
         accion=accion,

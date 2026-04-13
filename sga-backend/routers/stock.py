@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+"""
+Router de Stock — tabla STOCK de LIN (esquema dbo).
+PK compuesta: (STOARTCOD, STOUBI, STOLOT).
+El stock se consulta siempre en tiempo real desde LIN.
+"""
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from database import SessionLocal
 import models
-from datetime import datetime
 
 router = APIRouter(prefix="/stock", tags=["Stock"])
 
@@ -15,108 +20,125 @@ def get_db():
         db.close()
 
 
-def _get_o_crear_stock(producto_id: int, db: Session) -> models.Stock:
-    """Devuelve el registro de stock o lo crea si no existe."""
-    item = db.query(models.Stock).filter(models.Stock.producto_id == producto_id).first()
-    if not item:
-        item = models.Stock(producto_id=producto_id, ubicacion_id=None, cantidad=0)
-        db.add(item)
-        db.flush()
-    return item
+@router.get("/")
+def listar_stock(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    articulo_cod: str = Query(None, description="Filtra por código de artículo (STOARTCOD)"),
+    ubicacion: str = Query(None, description="Filtra por código de ubicación (STOUBI)"),
+    solo_con_stock: bool = Query(True, description="Si true, muestra solo registros con cantidad > 0"),
+    db: Session = Depends(get_db)
+):
+    """Lista el stock de la tabla STOCK con nombre de artículo."""
+    query = db.query(models.Stock)
+
+    if solo_con_stock:
+        query = query.filter(models.Stock.cantidad > 0)
+    if articulo_cod:
+        query = query.filter(models.Stock.articulo_cod == articulo_cod)
+    if ubicacion:
+        query = query.filter(models.Stock.ubicacion == ubicacion)
+
+    total = query.count()
+    stock_rows = query.offset(skip).limit(limit).all()
+
+    # Enriquecer con nombre de artículo
+    skus = list({s.articulo_cod.strip() for s in stock_rows})
+    articulos_map = {}
+    if skus:
+        arts = db.query(models.Articulo).filter(models.Articulo.sku.in_(skus)).all()
+        articulos_map = {a.sku.strip(): (a.nombre or "").strip() for a in arts}
+
+    resultado = []
+    for s in stock_rows:
+        cod = (s.articulo_cod or "").strip()
+        resultado.append({
+            "articulo_cod": cod,
+            "articulo_nombre": articulos_map.get(cod, ""),
+            "ubicacion": (s.ubicacion or "").strip(),
+            "lote": (s.lote or "").strip(),
+            "cantidad": s.cantidad or 0.0,
+        })
+
+    return {"total": total, "stock": resultado}
 
 
-def _registrar_movimiento(db: Session, producto_id: int, cambio: int,
-                           cantidad_anterior: int, cantidad_nueva: int,
-                           motivo: str = None):
-    mov = models.Movimiento(
-        producto_id=producto_id,
-        tipo="entrada" if cambio > 0 else "salida",
-        cantidad=abs(cambio),
-        cantidad_anterior=cantidad_anterior,
-        cantidad_nueva=cantidad_nueva,
-        motivo=motivo,
-        fecha=datetime.utcnow(),
+@router.get("/resumen")
+def resumen_stock(db: Session = Depends(get_db)):
+    """
+    Stock total por artículo (suma de todas las ubicaciones y lotes).
+    Útil para el dashboard y para saber si un artículo está bajo mínimo.
+    """
+    rows = (
+        db.query(
+            models.Stock.articulo_cod,
+            func.sum(models.Stock.cantidad).label("total")
+        )
+        .filter(models.Stock.cantidad > 0)
+        .group_by(models.Stock.articulo_cod)
+        .all()
     )
-    db.add(mov)
 
+    # Enriquecer con datos del artículo
+    skus = [r[0].strip() for r in rows]
+    articulos_map = {}
+    if skus:
+        arts = db.query(models.Articulo).filter(models.Articulo.sku.in_(skus)).all()
+        articulos_map = {a.sku.strip(): a for a in arts}
 
-@router.put("/{producto_id}")
-def actualizar_cantidad(producto_id: int, cambio: int, motivo: str = None,
-                        db: Session = Depends(get_db)):
-    # Verificar que el producto existe
-    if not db.query(models.Producto).filter(models.Producto.id == producto_id).first():
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    resultado = []
+    bajo_minimo = 0
+    for cod, total in rows:
+        cod = cod.strip()
+        art = articulos_map.get(cod)
+        stock_min = art.stock_min if art else 0
+        en_minimo = (total or 0) < (stock_min or 0)
+        if en_minimo:
+            bajo_minimo += 1
+        resultado.append({
+            "articulo_cod": cod,
+            "articulo_nombre": (art.nombre or "").strip() if art else "",
+            "stock_min": stock_min,
+            "stock_max": art.stock_max if art else 0,
+            "cantidad_total": total or 0.0,
+            "bajo_minimo": en_minimo,
+        })
 
-    try:
-        item = _get_o_crear_stock(producto_id, db)
-        cantidad_anterior = item.cantidad
-        item.cantidad = max(0, item.cantidad + cambio)
-
-        _registrar_movimiento(db, producto_id, cambio,
-                               cantidad_anterior, item.cantidad, motivo)
-        db.commit()
-        return {"nueva_cantidad": item.cantidad}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-
-
-@router.put("/{producto_id}/fijar")
-def fijar_cantidad(producto_id: int, cantidad: int, motivo: str = None,
-                   db: Session = Depends(get_db)):
-    if not db.query(models.Producto).filter(models.Producto.id == producto_id).first():
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-    try:
-        item = _get_o_crear_stock(producto_id, db)
-        cantidad_anterior = item.cantidad
-        cantidad_nueva = max(0, cantidad)
-        cambio = cantidad_nueva - cantidad_anterior
-        item.cantidad = cantidad_nueva
-
-        if cambio != 0:
-            _registrar_movimiento(db, producto_id, cambio,
-                                   cantidad_anterior, cantidad_nueva, motivo)
-        db.commit()
-        return {"nueva_cantidad": item.cantidad}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
-
-
-@router.get("/mapa/{zona_id}")
-def obtener_mapa_zona(zona_id: int, db: Session = Depends(get_db)):
-    """
-    Devuelve las ubicaciones de una zona con el nivel de ocupación actual.
-    Por simplicidad, asume que si hay items en el stock vinculados a esa ubicación, esa es la ocupación.
-    """
-    zona = db.query(models.Zona).filter(models.Zona.id == zona_id).first()
-    if not zona:
-        raise HTTPException(status_code=404, detail="Zona no encontrada")
-
-    ubicaciones = db.query(models.Ubicacion).filter(models.Ubicacion.zona_id == zona_id).all()
-    
-    resultado = {
-        "zona_id": zona.id,
-        "zona_nombre": zona.nombre,
-        "ubicaciones": []
+    return {
+        "total_articulos_con_stock": len(resultado),
+        "bajo_minimo": bajo_minimo,
+        "detalle": resultado
     }
 
-    for u in ubicaciones:
-        stock_en_ubicacion = db.query(models.Stock).filter(models.Stock.ubicacion_id == u.id).all()
-        cantidad_total = sum(s.cantidad for s in stock_en_ubicacion)
-        
-        capacidad = u.capacidad_max if u.capacidad_max else 100 # Default si no está definido
-        porcentaje = round((cantidad_total / capacidad) * 100, 2) if capacidad > 0 else 0
-        
-        resultado["ubicaciones"].append({
-            "id": u.id,
-            "codigo": u.codigo,
-            "capacidad_max": capacidad,
-            "cantidad_actual": cantidad_total,
-            "ocupacion_porcentaje": min(100, porcentaje),
-            "estado": "lleno" if porcentaje >= 100 else "medio" if porcentaje >= 50 else "vacio",
-            "activo": u.activo
-        })
-        
-    return resultado
+
+@router.get("/{articulo_cod}")
+def stock_por_articulo(articulo_cod: str, db: Session = Depends(get_db)):
+    """Obtiene el stock detallado de un artículo concreto (por ubicación y lote)."""
+    articulo = db.query(models.Articulo).filter(models.Articulo.sku == articulo_cod).first()
+    if not articulo:
+        raise HTTPException(status_code=404, detail=f"Artículo '{articulo_cod}' no encontrado")
+
+    stock_rows = (
+        db.query(models.Stock)
+        .filter(models.Stock.articulo_cod == articulo_cod, models.Stock.cantidad > 0)
+        .all()
+    )
+
+    total = sum(s.cantidad or 0 for s in stock_rows)
+
+    return {
+        "articulo_cod": articulo_cod,
+        "articulo_nombre": (articulo.nombre or "").strip(),
+        "stock_min": articulo.stock_min,
+        "stock_max": articulo.stock_max,
+        "cantidad_total": total,
+        "bajo_minimo": total < (articulo.stock_min or 0),
+        "detalle": [
+            {
+                "ubicacion": (s.ubicacion or "").strip(),
+                "lote": (s.lote or "").strip(),
+                "cantidad": s.cantidad or 0.0,
+            }
+            for s in stock_rows
+        ]
+    }

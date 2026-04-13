@@ -9,3 +9,7 @@ __pycache__/
 node_modules/
 dist/
 .env.local
+
+docker-compose.yml
+LIN
+MIGRACION_LIN.md

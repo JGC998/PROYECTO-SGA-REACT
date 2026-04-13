@@ -9,19 +9,6 @@ export function AuthProvider({ children }) {
     const [token, setToken] = useState(localStorage.getItem('token') || null)
     const [cargando, setCargando] = useState(true)
 
-    // Configurar el interceptor de axios para inyectar el token en todas las peticiones
-    useEffect(() => {
-        const interceptor = api.interceptors.request.use(
-            config => {
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`
-                }
-                return config
-            },
-            error => Promise.reject(error)
-        )
-        return () => api.interceptors.request.eject(interceptor)
-    }, [token])
 
     // Cargar perfil del usuario si hay token
     useEffect(() => {

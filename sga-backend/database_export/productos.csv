@@ -1,0 +1,11 @@
+﻿id;sku;nombre;descripcion;categoria_id;proveedor_id;unidad_medida;stock_minimo;stock_maximo;precio_coste;codigo_barras;imagen_url;activo;creado_en
+5;SV;ARTÍCULO         SV;Migrado desde DBO;;;ud;0;;;GEN-SV;;True;2026-04-13 15:04:58.553000
+6;0000031;ARTÍCULO 0000031;Migrado desde DBO;;;ud;0;;;GEN-0000031;;True;2026-04-13 15:04:58.553000
+7;0000050;ARTÍCULO 0000050;Migrado desde DBO;;;ud;0;;;GEN-0000050;;True;2026-04-13 15:04:58.553000
+8;0000056;ARTÍCULO 0000056;Migrado desde DBO;;;ud;0;;;GEN-0000056;;True;2026-04-13 15:04:58.553000
+9;0000062;ARTÍCULO 0000062;Migrado desde DBO;;;ud;0;;;GEN-0000062;;True;2026-04-13 15:04:58.553000
+10;0000070;ARTÍCULO 0000070;Migrado desde DBO;;;ud;0;;;GEN-0000070;;True;2026-04-13 15:04:58.553000
+11;0000072;ARTÍCULO 0000072;Migrado desde DBO;;;ud;0;;;GEN-0000072;;True;2026-04-13 15:04:58.553000
+12;0000074;ARTÍCULO 0000074;Migrado desde DBO;;;ud;0;;;GEN-0000074;;True;2026-04-13 15:04:58.553000
+13;0000090;ARTÍCULO 0000090;Migrado desde DBO;;;ud;0;;;GEN-0000090;;True;2026-04-13 15:04:58.553000
+14;0000093;ARTÍCULO 0000093;Migrado desde DBO;;;ud;0;;;GEN-0000093;;True;2026-04-13 15:04:58.553000

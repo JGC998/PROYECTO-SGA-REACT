@@ -1,12 +1,17 @@
+"""
+Router de Picking — tablas propias del SGA (esquema sga).
+Los artículos se identifican por ARTCOD (str). El stock se actual en la tabla STOCK de LIN.
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from database import SessionLocal
+import modelos_operacionales as op
 import models
-import schemas
-from typing import List
 from datetime import datetime
 
 router = APIRouter(prefix="/picking", tags=["Picking"])
+
 
 def get_db():
     db = SessionLocal()
@@ -15,107 +20,149 @@ def get_db():
     finally:
         db.close()
 
+
 def _generar_codigo() -> str:
     return f"PIK-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
 
-@router.get("/", response_model=List[schemas.PickingOrdenResponse])
-def listar_ordenes(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    return db.query(models.PickingOrden).options(joinedload(models.PickingOrden.lineas)).order_by(models.PickingOrden.id.desc()).offset(skip).limit(limit).all()
 
-@router.post("/", response_model=schemas.PickingOrdenResponse, status_code=201)
-def crear_orden(item: schemas.PickingOrdenCreate, db: Session = Depends(get_db)):
-    db_pik = models.PickingOrden(
-        codigo=item.codigo or _generar_codigo(),
-        operario_id=item.operario_id,
-        prioridad=item.prioridad,
-        notas=item.notas,
-        estado='pendiente'
+def _orden_to_dict(o: op.PickingOrden) -> dict:
+    return {
+        "id": o.id,
+        "codigo": o.codigo,
+        "operario_cod": o.operario_cod,
+        "estado": o.estado,
+        "prioridad": o.prioridad,
+        "notas": o.notas,
+        "creado_en": o.creado_en.isoformat() if o.creado_en else None,
+        "completado_en": o.completado_en.isoformat() if o.completado_en else None,
+        "lineas": [
+            {
+                "id": l.id,
+                "articulo_cod": l.articulo_cod,
+                "cantidad_solicitada": l.cantidad_solicitada,
+                "cantidad_recogida": l.cantidad_recogida,
+                "ubicacion_origen": l.ubicacion_origen,
+                "estado": l.estado,
+            }
+            for l in (o.lineas or [])
+        ]
+    }
+
+
+@router.get("/")
+def listar_ordenes(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    ordenes = (
+        db.query(op.PickingOrden)
+        .options(joinedload(op.PickingOrden.lineas))
+        .order_by(op.PickingOrden.id.desc())
+        .offset(skip).limit(limit).all()
     )
-    db.add(db_pik)
+    return [_orden_to_dict(o) for o in ordenes]
+
+
+@router.post("/", status_code=201)
+def crear_orden(item: dict, db: Session = Depends(get_db)):
+    """
+    Crea una orden de picking. Body esperado:
+    {
+      "operario_cod": "OPE01",
+      "prioridad": 1,
+      "notas": "...",
+      "lineas": [{"articulo_cod": "ART001", "cantidad_solicitada": 5, "ubicacion_origen": "A-01"}]
+    }
+    """
+    pik = op.PickingOrden(
+        codigo=_generar_codigo(),
+        operario_cod=item.get("operario_cod"),
+        prioridad=item.get("prioridad", 1),
+        notas=item.get("notas"),
+        estado="pendiente"
+    )
+    db.add(pik)
     db.flush()
 
-    for linea in item.lineas:
-        db_linea = models.PickingLinea(
-            picking_id=db_pik.id,
-            producto_id=linea.producto_id,
-            cantidad_solicitada=linea.cantidad_solicitada,
-            ubicacion_origen_id=linea.ubicacion_origen_id,
-            estado='pendiente'
+    for l in item.get("lineas", []):
+        art = db.query(models.Articulo).filter(models.Articulo.sku == l.get("articulo_cod")).first()
+        if not art:
+            db.rollback()
+            raise HTTPException(400, f"Artículo '{l.get('articulo_cod')}' no encontrado")
+        linea = op.PickingLinea(
+            picking_id=pik.id,
+            articulo_cod=l["articulo_cod"],
+            cantidad_solicitada=l.get("cantidad_solicitada", 0),
+            ubicacion_origen=l.get("ubicacion_origen"),
+            estado="pendiente"
         )
-        db.add(db_linea)
-        
+        db.add(linea)
+
     db.commit()
-    db.refresh(db_pik)
-    return db_pik
+    db.refresh(pik)
+    return _orden_to_dict(pik)
+
 
 @router.put("/{picking_id}/asignar")
-def asignar_operario(picking_id: int, operario_id: int, db: Session = Depends(get_db)):
-    orden = db.query(models.PickingOrden).filter(models.PickingOrden.id == picking_id).first()
+def asignar_operario(picking_id: int, operario_cod: str, db: Session = Depends(get_db)):
+    orden = db.query(op.PickingOrden).filter(op.PickingOrden.id == picking_id).first()
     if not orden:
         raise HTTPException(404, "Orden no encontrada")
-    orden.operario_id = operario_id
-    if orden.estado == 'pendiente':
-        orden.estado = 'en_proceso'
+    orden.operario_cod = operario_cod
+    if orden.estado == "pendiente":
+        orden.estado = "en_proceso"
     db.commit()
-    return {"mensaje": "Asignado"}
+    return {"mensaje": "Operario asignado"}
+
 
 @router.put("/{picking_id}/lineas/{linea_id}/recoger")
-def marcar_linea_recogida(picking_id: int, linea_id: int, c_recogida: int, db: Session = Depends(get_db)):
-    linea = db.query(models.PickingLinea).filter(models.PickingLinea.id == linea_id, models.PickingLinea.picking_id == picking_id).first()
+def marcar_linea_recogida(picking_id: int, linea_id: int, cantidad_recogida: float, db: Session = Depends(get_db)):
+    linea = (
+        db.query(op.PickingLinea)
+        .filter(op.PickingLinea.id == linea_id, op.PickingLinea.picking_id == picking_id)
+        .first()
+    )
     if not linea:
         raise HTTPException(404, "Línea no encontrada")
-    
-    linea.cantidad_recogida = c_recogida
-    if linea.cantidad_recogida >= linea.cantidad_solicitada:
-        linea.estado = 'completada'
-    else:
-        linea.estado = 'parcial'
-        
+
+    linea.cantidad_recogida = cantidad_recogida
+    linea.estado = "completada" if cantidad_recogida >= linea.cantidad_solicitada else "parcial"
     db.commit()
-    return {"mensaje": "Línea actualizada"}
+    return {"mensaje": "Línea actualizada", "estado": linea.estado}
+
 
 @router.put("/{picking_id}/completar")
 def completar_picking(picking_id: int, db: Session = Depends(get_db)):
-    """Descuenta el stock físico y completa la orden"""
-    orden = db.query(models.PickingOrden).options(joinedload(models.PickingOrden.lineas)).filter(models.PickingOrden.id == picking_id).first()
+    """Descuenta el stock de LIN (tabla STOCK) y cierra la orden."""
+    orden = (
+        db.query(op.PickingOrden)
+        .options(joinedload(op.PickingOrden.lineas))
+        .filter(op.PickingOrden.id == picking_id)
+        .first()
+    )
     if not orden:
         raise HTTPException(404, "Orden no encontrada")
-    if orden.estado == 'completado':
+    if orden.estado == "completado":
         return {"mensaje": "Ya estaba completada"}
 
     try:
         for linea in orden.lineas:
-            if linea.cantidad_recogida > 0:
-                # Buscar el stock en la ubicación de origen especificada (o la primera que tenga stock si no se especificó)
-                q_stock = db.query(models.Stock).filter(models.Stock.producto_id == linea.producto_id)
-                if linea.ubicacion_origen_id:
-                    q_stock = q_stock.filter(models.Stock.ubicacion_id == linea.ubicacion_origen_id)
-                
-                stock_item = q_stock.first()
-                if not stock_item or stock_item.cantidad < linea.cantidad_recogida:
-                    # En la vida real haríamos backorder o error. Por simplicidad, forzamos el negativo o restamos lo que haya.
-                    pass 
+            if linea.cantidad_recogida <= 0:
+                continue
 
-                if stock_item:
-                    cant_ant = stock_item.cantidad
-                    stock_item.cantidad -= linea.cantidad_recogida
-                    
-                    mov = models.Movimiento(
-                        producto_id=linea.producto_id,
-                        ubicacion_origen_id=linea.ubicacion_origen_id,
-                        tipo="salida",
-                        cantidad=linea.cantidad_recogida,
-                        cantidad_anterior=cant_ant,
-                        cantidad_nueva=stock_item.cantidad,
-                        motivo=f"Picking {orden.codigo}",
-                        fecha=datetime.utcnow()
-                    )
-                    db.add(mov)
+            # Buscar stock en la ubicación especificada
+            q = db.query(models.Stock).filter(models.Stock.articulo_cod == linea.articulo_cod)
+            if linea.ubicacion_origen:
+                q = q.filter(models.Stock.ubicacion == linea.ubicacion_origen)
+            stock_row = q.order_by(models.Stock.cantidad.desc()).first()
 
-        orden.estado = 'completado'
+            if stock_row:
+                stock_row.cantidad = (stock_row.cantidad or 0) - linea.cantidad_recogida
+                if stock_row.cantidad < 0:
+                    stock_row.cantidad = 0  # No permitir negativos
+            linea.estado = "completada"
+
+        orden.estado = "completado"
         orden.completado_en = datetime.utcnow()
         db.commit()
-        return {"mensaje": "Picking completado y stock descontado"}
+        return {"mensaje": "Picking completado y stock descontado de LIN"}
     except Exception as e:
         db.rollback()
         raise HTTPException(500, f"Error completando picking: {str(e)}")
