@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getMovimientos, crearMovimientoInterno } from '../../api/movimientos'
-import { getProductos } from '../../api/productos'
-import { getStock } from '../../api/stock'
-import { getAlmacenes, getZonas } from '../../api/almacenes' 
-import Modal from '../comunes/Modal'
+import { getMovimientos } from '../../api/movimientos'
+import EstadoCarga from '../comunes/EstadoCarga'
 import toast from 'react-hot-toast'
 
 const PAGE_SIZE = 50
@@ -14,27 +11,17 @@ export default function Movimientos() {
     const [cargando, setCargando] = useState(true)
     const [error, setError] = useState(null)
     const [pagina, setPagina] = useState(0)
-    const [filtroTipo, setFiltroTipo] = useState('')
+    const [filtroArticulo, setFiltroArticulo] = useState('')
+    const [filtroAlmacen, setFiltroAlmacen] = useState('')
 
-    // Form data
-    const [modalAbierto, setModalAbierto] = useState(false)
-    const [productos, setProductos] = useState([])
-    const [stockDir, setStockDir] = useState([]) // [ {producto_id, ubicacion_id, cantidad, ubicacion:{codigo} } ] 
-    
-    const [formMov, setFormMov] = useState({
-        producto_id: '',
-        ubicacion_origen_id: '',
-        ubicacion_destino_id: '',
-        cantidad: 1,
-        motivo: ''
-    })
-
-    const cargar = async (pag = 0, tipo = filtroTipo) => {
+    const cargar = async (pag = 0) => {
         setCargando(true)
         setError(null)
         try {
             const params = { skip: pag * PAGE_SIZE, limit: PAGE_SIZE }
-            if (tipo) params.tipo = tipo
+            // Filtros adaptados a ALBARANCS (sin tipo, con articulo_cod y almacen_cod)
+            if (filtroArticulo) params.articulo_cod = filtroArticulo
+            if (filtroAlmacen) params.almacen_cod = filtroAlmacen
             const res = await getMovimientos(params)
             setMovimientos(res.data.movimientos)
             setTotal(res.data.total)
@@ -45,28 +32,9 @@ export default function Movimientos() {
         }
     }
 
-    const cargarFormData = async () => {
-        try {
-            const [prods, sts] = await Promise.all([getProductos(0, 1000), getStock()])
-            setProductos(prods.data.productos)
-            setStockDir(sts)
-        } catch(e) {
-            toast.error("Error al cargar dependencias de stock")
-        }
-    }
-
-    useEffect(() => { 
-        cargar(0) 
-        cargarFormData()
-    }, [])
+    useEffect(() => { cargar(0) }, [filtroArticulo, filtroAlmacen])
 
     const totalPaginas = Math.ceil(total / PAGE_SIZE)
-
-    const cambiarFiltro = (tipo) => {
-        setFiltroTipo(tipo)
-        setPagina(0)
-        cargar(0, tipo)
-    }
 
     const irPagina = (nuevaPag) => {
         setPagina(nuevaPag)
@@ -74,6 +42,7 @@ export default function Movimientos() {
     }
 
     const formatFecha = (iso) => {
+        if (!iso) return '—'
         const d = new Date(iso)
         return d.toLocaleString('es-ES', {
             day: '2-digit', month: '2-digit', year: 'numeric',
@@ -81,56 +50,35 @@ export default function Movimientos() {
         })
     }
 
-    const handleCrearTraspaso = async (e) => {
-        e.preventDefault()
-        try {
-            await crearMovimientoInterno({
-                producto_id: parseInt(formMov.producto_id),
-                ubicacion_origen_id: parseInt(formMov.ubicacion_origen_id),
-                ubicacion_destino_id: parseInt(formMov.ubicacion_destino_id),
-                cantidad: parseInt(formMov.cantidad),
-                motivo: formMov.motivo
-            })
-            toast.success("Traspaso completado")
-            setModalAbierto(false)
-            cargar(0) // refrescar movs
-            cargarFormData() // refrescar stock actual
-        } catch (e) {
-            toast.error(e.response?.data?.detail || "Error al realizar traspaso")
-        }
-    }
-
     return (
         <div className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
-                    <h1 className="page-title">Movimientos y Traspasos</h1>
-                    <p className="page-subtitle">Historial de todo lo que entra, sale o se mueve.</p>
+                    <h1 className="page-title">Movimientos de Stock</h1>
+                    <p className="page-subtitle">Historial de entradas y salidas desde la base de datos LIN (ALBARANCS)</p>
                 </div>
-                <button className="btn-accent" onClick={() => {
-                    setFormMov({producto_id:'', ubicacion_origen_id:'', ubicacion_destino_id:'', cantidad:1, motivo:''});
-                    setModalAbierto(true);
-                }}>
-                    🔄 Nuevo Traspaso (M. Interno)
-                </button>
             </div>
 
-            <div className="filtros-movimientos card" style={{ padding: '16px', marginBottom: '24px' }}>
-                <button className={filtroTipo === '' ? 'btn-filtro active' : 'btn-filtro'} onClick={() => cambiarFiltro('')}>
-                    Todos
-                </button>
-                <button className={filtroTipo === 'entrada' ? 'btn-filtro active' : 'btn-filtro'} onClick={() => cambiarFiltro('entrada')}>
-                    ↑ Entradas
-                </button>
-                <button className={filtroTipo === 'salida' ? 'btn-filtro active' : 'btn-filtro'} onClick={() => cambiarFiltro('salida')}>
-                    ↓ Salidas
-                </button>
-                <button className={filtroTipo === 'transferencia' ? 'btn-filtro active' : 'btn-filtro'} onClick={() => cambiarFiltro('transferencia')}>
-                    🔄 Traspasos Internos
-                </button>
+            {/* Filtros */}
+            <div className="card" style={{ marginBottom: '24px', display: 'flex', gap: '16px', padding: '16px', background: 'var(--surface)' }}>
+                <input
+                    type="text"
+                    placeholder="Filtrar por código de artículo (SKU)..."
+                    value={filtroArticulo}
+                    onChange={e => setFiltroArticulo(e.target.value)}
+                    style={{ flex: 1 }}
+                />
+                <input
+                    type="text"
+                    placeholder="Filtrar por almacén (ej: A1)..."
+                    value={filtroAlmacen}
+                    onChange={e => setFiltroAlmacen(e.target.value)}
+                    style={{ width: '200px' }}
+                />
+                <button className="btn-ghost" onClick={() => { setFiltroArticulo(''); setFiltroAlmacen('') }}>✕ Limpiar</button>
             </div>
 
-            {cargando && <p className="estado-info">Cargando movimientos…</p>}
+            {cargando && <EstadoCarga />}
             {!cargando && error && <p className="estado-error">{error}</p>}
 
             {!cargando && !error && (
@@ -139,11 +87,12 @@ export default function Movimientos() {
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                 <th style={{ padding: '12px' }}>Fecha</th>
-                                <th style={{ padding: '12px' }}>Producto</th>
-                                <th style={{ padding: '12px' }}>Tipo</th>
+                                <th style={{ padding: '12px' }}>Artículo</th>
+                                <th style={{ padding: '12px' }}>Movimiento</th>
                                 <th style={{ padding: '12px' }}>Cantidad</th>
-                                <th style={{ padding: '12px' }}>Antes → Después</th>
-                                <th style={{ padding: '12px' }}>Motivo</th>
+                                <th style={{ padding: '12px' }}>Ubicación</th>
+                                <th style={{ padding: '12px' }}>Albarán</th>
+                                <th style={{ padding: '12px' }}>Cliente</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -154,29 +103,38 @@ export default function Movimientos() {
                                             {formatFecha(m.fecha)}
                                         </td>
                                         <td style={{ padding: '12px' }}>
-                                            <strong style={{ color: 'var(--text-100)' }}>{m.producto_sku}</strong><br />
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-400)' }}>{m.producto_nombre}</span>
+                                            <strong style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>{m.articulo_cod}</strong>
                                         </td>
                                         <td style={{ padding: '12px' }}>
-                                            <span className={`badge badge-${m.tipo}`}>
-                                                {m.tipo === 'entrada' ? '↑ Entrada' : m.tipo === 'salida' ? '↓ Salida' : '🔄 Transferencia'}
+                                            <span style={{
+                                                padding: '2px 8px',
+                                                borderRadius: '4px',
+                                                fontSize: '0.8rem',
+                                                background: m.mov === 'E' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                                                color: m.mov === 'E' ? 'var(--green)' : 'var(--red)'
+                                            }}>
+                                                {m.tipo_mov || m.mov || '—'}
                                             </span>
                                         </td>
                                         <td style={{ fontWeight: 'bold', padding: '12px', color: 'var(--text-100)' }}>
-                                            {m.tipo === 'entrada' ? '+' : m.tipo === 'salida' ? '-' : ''}{m.cantidad}
+                                            {m.cantidad ?? '—'}
                                         </td>
-                                        <td style={{ color: 'var(--text-400)', fontSize: '0.9rem', padding: '12px' }}>
-                                            {m.cantidad_anterior} → {m.cantidad_nueva}
+                                        <td style={{ padding: '12px', color: 'var(--text-400)', fontSize: '0.9rem' }}>
+                                            {m.ubicacion || '—'}
+                                            {m.almacen_cod ? <div style={{ fontSize: '0.75rem' }}>Alm: {m.almacen_cod}</div> : null}
                                         </td>
-                                        <td style={{ color: 'var(--text-300)', fontSize: '0.85rem', padding: '12px' }}>
-                                            {m.motivo || '—'}
+                                        <td style={{ padding: '12px', color: 'var(--text-300)', fontSize: '0.85rem' }}>
+                                            {m.num_alb || `${m.serie || ''}-${m.numero || ''}`}
+                                        </td>
+                                        <td style={{ padding: '12px', color: 'var(--text-300)', fontSize: '0.85rem' }}>
+                                            {m.cliente_nom || m.cliente_cod || '—'}
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-400)' }}>
-                                        No hay movimientos registrados aún.
+                                    <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-400)' }}>
+                                        No hay movimientos registrados o los filtros no devuelven resultados.
                                     </td>
                                 </tr>
                             )}
@@ -184,7 +142,7 @@ export default function Movimientos() {
                     </table>
 
                     {totalPaginas > 1 && (
-                        <div className="paginacion" style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                        <div className="paginacion" style={{ padding: '16px', borderTop: '1px solid var(--border)', display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
                             <button className="btn-outline" disabled={pagina === 0} onClick={() => irPagina(pagina - 1)}>← Anterior</button>
                             <span>Página {pagina + 1} de {totalPaginas} ({total} movimientos)</span>
                             <button className="btn-outline" disabled={pagina >= totalPaginas - 1} onClick={() => irPagina(pagina + 1)}>Siguiente →</button>
@@ -192,59 +150,6 @@ export default function Movimientos() {
                     )}
                 </div>
             )}
-
-            {/* Modal Traspaso */}
-            <Modal isOpen={modalAbierto} onClose={() => setModalAbierto(false)} titulo="Mover Stock / Traspaso">
-                 <form onSubmit={handleCrearTraspaso} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                        <label>Producto a Mover</label>
-                        <select required value={formMov.producto_id} onChange={e => setFormMov({...formMov, producto_id: e.target.value, ubicacion_origen_id: ''})}>
-                            <option value="">Selecciona Producto...</option>
-                            {productos.map(p => <option key={p.id} value={p.id}>{p.sku} - {p.nombre}</option>)}
-                        </select>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                        <div>
-                            <label>Desde: Ubicación Origen</label>
-                            <select required value={formMov.ubicacion_origen_id} onChange={e => setFormMov({...formMov, ubicacion_origen_id: e.target.value})}>
-                                <option value="">Selecciona Origen...</option>
-                                {stockDir.filter(s => s.producto_id === parseInt(formMov.producto_id) && s.cantidad > 0).map(st => (
-                                    <option key={st.id} value={st.ubicacion_id}>Ubic {st.ubicacion?.codigo} (Max disp: {st.cantidad})</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label>Hacia: Ubicación Destino</label>
-                            {/* En la vida real, el destino podría ser cualquier ubicación existente. 
-                                Como el GET /ubicaciones no existe suelto aún (lo unimos a zonas), usamos un text input o listamos las del backend.
-                                Como tenemos un dropdown de ubicaciones activas en stockDir, podemos permitir mover a una existente,
-                                pero eso limitaría mover a sitios nuevos vacíos. Vamos a simplificar usando las mismas ubicaciones generadas.  */}
-                            <input 
-                                required type="number" placeholder="ID de Ubicación (Ej: 1)" 
-                                value={formMov.ubicacion_destino_id} 
-                                onChange={e => setFormMov({...formMov, ubicacion_destino_id: e.target.value})} 
-                                title="En la versión completa habría un selector de árbol de Almacén > Zona > Ubicación libre"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label>Cantidad (ud/kg)</label>
-                        <input required type="number" min="1" value={formMov.cantidad} onChange={e => setFormMov({...formMov, cantidad: e.target.value})} />
-                    </div>
-                    
-                    <div>
-                        <label>Motivo</label>
-                        <input value={formMov.motivo} onChange={e => setFormMov({...formMov, motivo: e.target.value})} placeholder="Ej. Reorganización" />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-                        <button type="button" className="btn-ghost" onClick={() => setModalAbierto(false)}>Cancelar</button>
-                        <button type="submit" className="btn-accent">Confirmar Traspaso</button>
-                    </div>
-                 </form>
-            </Modal>
         </div>
     )
 }

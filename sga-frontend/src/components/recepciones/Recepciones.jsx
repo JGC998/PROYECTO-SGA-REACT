@@ -17,9 +17,9 @@ export default function Recepciones() {
     const [cargando, setCargando] = useState(true)
     const [activa, setActiva] = useState(null) // Recepción seleccionada en el detalle
     
+    const [formCabecera, setFormCabecera] = useState({ proveedor_id: '', notas: '' })
+    const [formLineas, setFormLineas] = useState([]) // [{articulo_cod, cantidad_esperada, ubicacion_destino, lote}]
     const [modalAbierto, setModalAbierto] = useState(false)
-    const [formCabecera, setFormCabecera] = useState({ proveedor_id: '', notas: '', codigo: '' })
-    const [formLineas, setFormLineas] = useState([]) // [{producto_id, cantidad_esperada}]
 
     const cargarDatos = async () => {
         try {
@@ -27,10 +27,10 @@ export default function Recepciones() {
             const [recs, provs, prods] = await Promise.all([
                 getRecepciones(),
                 getProveedores(),
-                getProductos(0, 1000) // Simplificado: cargar catálogo para el form
+                getProductos(0, 1000)
             ])
             setRecepciones(recs)
-            setProveedores(provs)
+            setProveedores(provs.data.proveedores || [])
             setProductosCat(prods.data.productos)
             
             if (activa) {
@@ -38,7 +38,7 @@ export default function Recepciones() {
                 setActiva(refreshed)
             }
         } catch (err) {
-            toast.error("Error al cargar las recepciones")
+            toast.error('Error al cargar las recepciones')
         } finally {
             setCargando(false)
         }
@@ -46,24 +46,28 @@ export default function Recepciones() {
 
     useEffect(() => { cargarDatos() }, [])
 
+
     const handleCrear = async (e) => {
         e.preventDefault()
-        if (formLineas.length === 0) return toast.error("La recepción debe tener al menos 1 línea")
+        if (formLineas.length === 0) return toast.error('La recepción debe tener al menos 1 línea')
         try {
             await crearRecepcion({
-                codigo: formCabecera.codigo || `REC-${Date.now()}`,
-                proveedor_id: parseInt(formCabecera.proveedor_id),
+                // proveedor_cod es string (CLICOD), no int
+                proveedor_cod: formCabecera.proveedor_id || null,
                 notas: formCabecera.notas,
                 lineas: formLineas.map(l => ({
-                    producto_id: parseInt(l.producto_id),
-                    cantidad_esperada: parseInt(l.cantidad_esperada)
+                    // articulo_cod es string (ARTCOD), no int
+                    articulo_cod: l.producto_id,
+                    cantidad_esperada: parseFloat(l.cantidad_esperada) || 0,
+                    ubicacion_destino: l.ubicacion_destino || '',
+                    lote: l.lote || ''
                 }))
             })
-            toast.success("Albarán de recepción creado")
+            toast.success('Albaran de recepción creado')
             setModalAbierto(false)
             cargarDatos()
         } catch (err) {
-            toast.error("Error creando la recepción")
+            toast.error('Error creando la recepción')
         }
     }
 
@@ -179,12 +183,13 @@ export default function Recepciones() {
                                 </thead>
                                 <tbody>
                                     {activa.lineas.map(l => {
-                                        const prod = productosCat.find(p => p.id === l.producto_id)
+                                        // Buscar el producto por articulo_cod (str)
+                                        const prod = productosCat.find(p => p.sku === l.articulo_cod)
                                         return (
                                             <tr key={l.id} style={{ borderBottom: '1px solid var(--border)', background: l.cantidad_recibida !== l.cantidad_esperada && activa.estado === 'completada' ? 'var(--red-bg)' : 'transparent' }}>
                                                 <td style={{ padding: '12px' }}>
-                                                    <div style={{ fontWeight: '500', color: 'var(--text-100)' }}>{prod?.sku}</div>
-                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-400)' }}>{prod?.nombre}</div>
+                                                    <div style={{ fontWeight: '500', color: 'var(--text-100)', fontFamily: 'monospace' }}>{l.articulo_cod}</div>
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-400)' }}>{prod?.nombre || ''}</div>
                                                 </td>
                                                 <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{l.cantidad_esperada}</td>
                                                 <td style={{ padding: '12px', textAlign: 'right' }}>
@@ -193,9 +198,9 @@ export default function Recepciones() {
                                                             type="number" 
                                                             style={{ width: '80px', textAlign: 'right' }} 
                                                             defaultValue={l.cantidad_recibida}
-                                                            onBlur={(e) => handleActualizarLinea(l.id, parseInt(e.target.value))}
+                                                            onBlur={(e) => handleActualizarLinea(l.id, parseFloat(e.target.value))}
                                                             onKeyDown={(e) => {
-                                                                if(e.key === 'Enter') handleActualizarLinea(l.id, parseInt(e.target.value))
+                                                                if(e.key === 'Enter') handleActualizarLinea(l.id, parseFloat(e.target.value))
                                                             }}
                                                         />
                                                     ) : (
@@ -230,8 +235,9 @@ export default function Recepciones() {
                         <div>
                             <label>Proveedor</label>
                             <select required value={formCabecera.proveedor_id} onChange={e => setFormCabecera({...formCabecera, proveedor_id: e.target.value})}>
-                                <option value="">Selecciona Proveedor</option>
-                                {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                    <option value="">Selecciona Proveedor</option>
+                                    {/* p.id es CLICOD (string) */}
+                                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                             </select>
                         </div>
                     </div>
@@ -253,7 +259,7 @@ export default function Recepciones() {
                                     }}
                                 >
                                     <option value="">Seleccionar Producto...</option>
-                                    {productosCat.map(p => <option key={p.id} value={p.id}>{p.sku} - {p.nombre}</option>)}
+                                    {productosCat.map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.nombre}</option>)}
                                 </select>
                                 <input 
                                     type="number" 

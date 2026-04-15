@@ -11,6 +11,6 @@ export const getMovimientosPorDia = async (dias = 7) => {
 }
 
 export const getOcupacionZonas = async () => {
-    const response = await api.get('/reportes/ocupacion-zonas')
+    const response = await api.get('/reportes/ocupacion-almacenes')
     return response.data
 }

@@ -56,7 +56,7 @@ def _articulo_to_dict(articulo: models.Articulo, cantidad: float = 0.0) -> dict:
 @router.get("/")
 def listar_articulos(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=1000),
     busqueda: str = Query(None, description="Filtra por nombre, SKU o código de barras"),
     grupo: str = Query(None, description="Filtra por grupo/subfamilia ARTGRUCOD"),
     solo_activos: bool = Query(True, description="Si true, excluye artículos con ARTMOS=1"),

@@ -1,26 +1,37 @@
 import api from './axios'
 
+/**
+ * API de Almacenes (tabla ALMACENES de LIN).
+ * Los IDs son ahora strings de 2 chars (ALMCOD), no enteros.
+ * No existen Zonas en LIN — se accede directamente a Ubicaciones.
+ */
 export const getAlmacenes = async () => {
-    const response = await api.get('/almacenes')
+    const response = await api.get('/almacenes/')
     return response.data
 }
 
-export const getZonas = async (almacenId) => {
-    const response = await api.get(`/almacenes/${almacenId}/zonas`)
+export const getAlmacen = async (codigo) => {
+    const response = await api.get(`/almacenes/${codigo}`)
     return response.data
 }
 
-export const createZona = async (almacenId, data) => {
-    const response = await api.post(`/almacenes/${almacenId}/zonas`, data)
+export const createAlmacen = async (data) => {
+    const response = await api.post('/almacenes/', data)
     return response.data
 }
 
-export const createUbicacion = async (data) => {
-    const response = await api.post('/ubicaciones', data)
+export const updateAlmacen = async (codigo, data) => {
+    const response = await api.put(`/almacenes/${codigo}`, data)
     return response.data
 }
 
-export const getUbicacionesPorZona = async (zonaId) => {
-    // El backend espera parámetros en la query si los tuvieramos, pero podemos usar el mapa de stock por ahora, o crear endpoint en el futuro.
-    // Usaremos llamadas a las ubicaciones base filtradas si fuera necesario.
+export const deleteAlmacen = async (codigo) => {
+    const response = await api.delete(`/almacenes/${codigo}`)
+    return response.data
+}
+
+// Lista las ubicaciones de un almacén concreto (reemplaza getZonas)
+export const getUbicacionesAlmacen = async (codigo) => {
+    const response = await api.get(`/almacenes/${codigo}/ubicaciones`)
+    return response.data
 }

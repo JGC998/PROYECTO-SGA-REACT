@@ -50,11 +50,20 @@ def _inv_to_dict(inv: op.Inventario) -> dict:
 
 @router.get("/")
 def listar_inventarios(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    # MSSQL: primero obtener IDs con ORDER BY + OFFSET, luego cargar con joinedload
+    ids = (
+        db.query(op.Inventario.id)
+        .order_by(op.Inventario.id.desc())
+        .offset(skip).limit(limit)
+        .all()
+    )
+    ids = [r[0] for r in ids]
     inventarios = (
         db.query(op.Inventario)
         .options(joinedload(op.Inventario.lineas))
+        .filter(op.Inventario.id.in_(ids))
         .order_by(op.Inventario.id.desc())
-        .offset(skip).limit(limit).all()
+        .all()
     )
     return [_inv_to_dict(i) for i in inventarios]
 

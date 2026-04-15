@@ -51,11 +51,20 @@ def _orden_to_dict(o: op.PickingOrden) -> dict:
 
 @router.get("/")
 def listar_ordenes(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    # MSSQL: primero obtener IDs con ORDER BY + OFFSET, luego cargar con joinedload
+    ids = (
+        db.query(op.PickingOrden.id)
+        .order_by(op.PickingOrden.id.desc())
+        .offset(skip).limit(limit)
+        .all()
+    )
+    ids = [r[0] for r in ids]
     ordenes = (
         db.query(op.PickingOrden)
         .options(joinedload(op.PickingOrden.lineas))
+        .filter(op.PickingOrden.id.in_(ids))
         .order_by(op.PickingOrden.id.desc())
-        .offset(skip).limit(limit).all()
+        .all()
     )
     return [_orden_to_dict(o) for o in ordenes]
 

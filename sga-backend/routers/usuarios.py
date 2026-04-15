@@ -19,7 +19,7 @@ def get_db():
 @router.get("/", response_model=list[UsuarioResponse])
 def listar_usuarios(skip: int = 0, limit: int = 50, db: Session = Depends(get_db),
                     current_user: models.Usuario = Depends(require_admin)):
-    return db.query(models.Usuario).offset(skip).limit(limit).all()
+    return db.query(models.Usuario).order_by(models.Usuario.id).offset(skip).limit(limit).all()
 
 
 @router.post("/", response_model=UsuarioResponse)

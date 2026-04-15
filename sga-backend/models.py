@@ -313,8 +313,8 @@ class SubFamilia(Base):
     __tablename__ = 'SUBFAMILIA'
     __table_args__ = {'schema': 'dbo'}
 
-    codigo  = Column('SUBFAMCOD', String(5), primary_key=True)
-    nombre  = Column('SUBFAMNOM', String(50), nullable=True, default='')
+    codigo  = Column('SFACOD', String(5), primary_key=True)
+    nombre  = Column('SFANOM', String(50), nullable=True, default='')
 
     @property
     def id(self):

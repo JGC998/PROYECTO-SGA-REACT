@@ -1,16 +1,26 @@
 import api from './axios'
 
-export const getStock = async () => {
-    const res = await api.get('/stock')
+/**
+ * API de Stock (tabla STOCK de LIN).
+ * El stock se identifica por la combinación articulo_cod + ubicacion + lote.
+ * No hay endpoint PUT /stock/:id/fijar — los ajustes se hacen via inventarios.
+ */
+
+// Lista el stock (con filtros opcionales)
+export const getStock = async (params = {}) => {
+    const query = new URLSearchParams(params).toString()
+    const res = await api.get(`/stock/${query ? '?' + query : ''}`)
     return res.data
 }
 
-export const getMapaZona = async (zonaId) => {
-    const response = await api.get(`/stock/mapa/${zonaId}`)
-    return response.data
+// Resumen de stock total por artículo (útil para dashboard y alertas)
+export const getResumenStock = async () => {
+    const res = await api.get('/stock/resumen')
+    return res.data
 }
 
-export const fijarStock = async (productoId, cantidad, motivo) => {
-    const response = await api.put(`/stock/${productoId}/fijar?cantidad=${cantidad}&motivo=${motivo || ''}`)
-    return response.data
+// Stock de un artículo concreto por su SKU
+export const getStockArticulo = async (sku) => {
+    const res = await api.get(`/stock/${sku}`)
+    return res.data
 }

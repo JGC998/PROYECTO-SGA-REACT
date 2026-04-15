@@ -5,7 +5,8 @@ import { useEffect } from 'react'
 import EstadoCarga from '../comunes/EstadoCarga'
 import EstadoVacio from '../comunes/EstadoVacio'
 import Badge from '../comunes/Badge'
-import { fijarStock } from '../../api/stock'
+import { getResumenStock } from '../../api/stock'
+import { updateProducto } from '../../api/productos'
 import toast from 'react-hot-toast'
 
 export default function GestionStock() {
@@ -35,15 +36,11 @@ export default function GestionStock() {
         }
     }, [vistaActiva])
 
-    const handleAjusteStock = async (pId) => {
-        try {
-            await fijarStock(pId, parseInt(nuevaCant, 10), "Ajuste manual desde panel general")
-            toast.success("Stock actualizado")
-            setEditando(null)
-            cargarListado()
-        } catch (err) {
-            toast.error("Error al fijar el stock")
-        }
+    const handleAjusteStock = async (sku) => {
+        // En LIN no hay endpoint de fijar stock directamente.
+        // Registramos el ajuste como un inventario puntual o lo dejamos como no-op por ahora.
+        toast.info('Los ajustes de stock se realizan a través de la sección Inventarios')
+        setEditando(null)
     }
 
     const Pestañas = () => (
@@ -100,12 +97,12 @@ export default function GestionStock() {
                                 </thead>
                                 <tbody>
                                     {productos.filter(p => p.sku.toLowerCase().includes(filtro.toLowerCase()) || p.nombre.toLowerCase().includes(filtro.toLowerCase())).map(p => (
-                                        <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                            <td style={{ padding: '12px', fontWeight: '500', color: 'var(--text-100)' }}>{p.sku}</td>
+                                        <tr key={p.sku} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '12px', fontWeight: '500', color: 'var(--accent)', fontFamily: 'monospace' }}>{p.sku}</td>
                                             <td style={{ padding: '12px' }}>{p.nombre}</td>
-                                            <td style={{ padding: '12px', color: 'var(--text-400)' }}>{p.stock_minimo}</td>
+                                            <td style={{ padding: '12px', color: 'var(--text-400)' }}>{p.stock_min ?? 0}</td>
                                             <td style={{ padding: '12px', fontWeight: 'bold' }}>
-                                                {editando === p.id ? (
+                                                {editando === p.sku ? (
                                                     <div style={{ display: 'flex', gap: '8px', maxWidth: '150px' }}>
                                                         <input 
                                                             type="number" 
@@ -115,22 +112,24 @@ export default function GestionStock() {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    p.cantidad
+                                                    <span style={{ color: p.cantidad <= 0 ? 'var(--red)' : p.cantidad <= (p.stock_min || 0) ? 'var(--yellow)' : 'var(--text-100)' }}>
+                                                        {p.cantidad ?? 0}
+                                                    </span>
                                                 )}
                                             </td>
                                             <td style={{ padding: '12px' }}>
-                                                {p.cantidad <= 0 ? <Badge texto="AGOTADO" variante="danger" /> : 
-                                                 p.cantidad < p.stock_minimo ? <Badge texto="BAJO MÍNIMO" variante="warning" /> : 
+                                                {(p.cantidad ?? 0) <= 0 ? <Badge texto="AGOTADO" variante="danger" /> : 
+                                                 (p.cantidad ?? 0) < (p.stock_min || 0) ? <Badge texto="BAJO MÍNIMO" variante="warning" /> : 
                                                  <Badge texto="OK" variante="success" />}
                                             </td>
                                             <td style={{ padding: '12px' }}>
-                                                {editando === p.id ? (
+                                                {editando === p.sku ? (
                                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                                        <button className="btn-accent" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleAjusteStock(p.id)}>Guardar</button>
+                                                        <button className="btn-accent" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleAjusteStock(p.sku)}>Guardar</button>
                                                         <button className="btn-ghost" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => setEditando(null)}>Cancelar</button>
                                                     </div>
                                                 ) : (
-                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => { setEditando(p.id); setNuevaCant(p.cantidad) }}>Ajustar manual</button>
+                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => { setEditando(p.sku); setNuevaCant(p.cantidad ?? 0) }}>Ver / Ajustar</button>
                                                 )}
                                             </td>
                                         </tr>

@@ -40,7 +40,7 @@ def listar_stock(
         query = query.filter(models.Stock.ubicacion == ubicacion)
 
     total = query.count()
-    stock_rows = query.offset(skip).limit(limit).all()
+    stock_rows = query.order_by(models.Stock.articulo_cod, models.Stock.ubicacion).offset(skip).limit(limit).all()
 
     # Enriquecer con nombre de artículo
     skus = list({s.articulo_cod.strip() for s in stock_rows})

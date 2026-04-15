@@ -1,22 +1,23 @@
 import api from './axios'
 
 export const getPicking = async () => {
-    const res = await api.get('/picking')
+    const res = await api.get('/picking/')
     return res.data
 }
 
 export const crearPicking = async (data) => {
-    const res = await api.post('/picking', data)
+    const res = await api.post('/picking/', data)
     return res.data
 }
 
-export const asignarPicking = async (pickingId, operarioId) => {
-    const res = await api.put(`/picking/${pickingId}/asignar?operario_id=${operarioId}`)
+// operario_cod es ahora string (antes operario_id int)
+export const asignarPicking = async (pickingId, operario_cod) => {
+    const res = await api.put(`/picking/${pickingId}/asignar?operario_cod=${operario_cod}`)
     return res.data
 }
 
 export const recogerLineaPicking = async (pickingId, lineaId, cantidad) => {
-    const res = await api.put(`/picking/${pickingId}/lineas/${lineaId}/recoger?c_recogida=${cantidad}`)
+    const res = await api.put(`/picking/${pickingId}/lineas/${lineaId}/recoger?cantidad_recogida=${cantidad}`)
     return res.data
 }
 

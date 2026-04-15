@@ -1,24 +1,20 @@
 import api from './axios'
 
+/**
+ * API de Productos (tabla ARTICULO de LIN).
+ * Los IDs son ahora strings (ARTCOD), no enteros.
+ */
 export const getProductos = (skip = 0, limit = 50, filtros = {}) => {
     const query = new URLSearchParams({ skip, limit, ...filtros }).toString()
     return api.get(`/productos/?${query}`)
 }
 
-export const createProducto = (data) => api.post('/productos', data)
+export const getProducto = (sku) => api.get(`/productos/${sku}`)
 
-export const updateProducto = (id, data) => api.put(`/productos/${id}`, data)
+export const createProducto = (data) => api.post('/productos/', data)
 
-export const deleteProducto = (id) => api.delete(`/productos/${id}`)
+// id es ahora el SKU (string)
+export const updateProducto = (sku, data) => api.put(`/productos/${sku}`, data)
 
-export const updateStock = (id, cambio, motivo = null) => {
-    const params = new URLSearchParams({ cambio })
-    if (motivo) params.append('motivo', motivo)
-    return api.put(`/stock/${id}?${params.toString()}`)
-}
-
-export const fijarStock = (id, cantidad, motivo = null) => {
-    const params = new URLSearchParams({ cantidad })
-    if (motivo) params.append('motivo', motivo)
-    return api.put(`/stock/${id}/fijar?${params.toString()}`)
-}
+// Borrado lógico — pone ARTMOS=1 (ocultar)
+export const deleteProducto = (sku) => api.delete(`/productos/${sku}`)

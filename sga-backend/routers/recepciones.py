@@ -51,11 +51,20 @@ def _recepcion_to_dict(r: op.Recepcion) -> dict:
 
 @router.get("/")
 def listar_recepciones(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    # MSSQL: primero obtener IDs con ORDER BY + OFFSET, luego cargar con joinedload
+    ids = (
+        db.query(op.Recepcion.id)
+        .order_by(op.Recepcion.id.desc())
+        .offset(skip).limit(limit)
+        .all()
+    )
+    ids = [r[0] for r in ids]
     recepciones = (
         db.query(op.Recepcion)
         .options(joinedload(op.Recepcion.lineas))
+        .filter(op.Recepcion.id.in_(ids))
         .order_by(op.Recepcion.id.desc())
-        .offset(skip).limit(limit).all()
+        .all()
     )
     return [_recepcion_to_dict(r) for r in recepciones]
 

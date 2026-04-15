@@ -39,9 +39,10 @@ export default function Picking() {
                 setOrdenes(ords)
                 setUsuarios(usrs)
                 setProductosCat(prods.data.productos)
-                setStockDir(sts)
+                setStockDir(sts.stock || [])
             } else {
-                setOrdenes(ords.filter(o => o.operario_id === usuario.id || !o.operario_id))
+                // Para operario: filtrar por su email (que es ahora el operario_cod)
+                setOrdenes(ords.filter(o => o.operario_cod === usuario.email || !o.operario_cod))
             }
 
             if (activa) {
@@ -59,34 +60,37 @@ export default function Picking() {
 
     const handleCrear = async (e) => {
         e.preventDefault()
-        if (formLineas.length === 0) return toast.error("Añade líneas al picking")
+        if (formLineas.length === 0) return toast.error('Añade líneas al picking')
         try {
             await crearPicking({
-                codigo: `PIK-${Date.now()}`,
-                operario_id: formOrden.operario_id ? parseInt(formOrden.operario_id) : null,
-                prioridad: parseInt(formOrden.prioridad),
+                // operario_cod es string, no int
+                operario_cod: formOrden.operario_id || null,
+                prioridad: parseInt(formOrden.prioridad),  // prioridad sí es int
                 notas: formOrden.notas,
                 lineas: formLineas.map(l => ({
-                    producto_id: parseInt(l.producto_id),
-                    cantidad_solicitada: parseInt(l.cantidad_solicitada),
-                    ubicacion_origen_id: l.ubicacion_id ? parseInt(l.ubicacion_id) : null
+                    // articulo_cod es string (ARTCOD), no int
+                    articulo_cod: l.producto_id,
+                    cantidad_solicitada: parseFloat(l.cantidad_solicitada) || 0,
+                    // ubicacion_origen es string (UBICON), no int
+                    ubicacion_origen: l.ubicacion_id || null
                 }))
             })
-            toast.success("Orden de Picking generada")
+            toast.success('Orden de Picking generada')
             setModalCrear(false)
             cargarDatos()
         } catch (err) {
-            toast.error("Error al crear Orden")
+            toast.error('Error al crear Orden')
         }
     }
 
     const tomarOrden = async (orden) => {
         try {
-            await asignarPicking(orden.id, usuario.id)
-            toast.success("Te has asignado esta orden")
+            // usuario.email o usuario.cod_lin es el cod string; usamos email como fallback
+            await asignarPicking(orden.id, usuario.email || String(usuario.id))
+            toast.success('Te has asignado esta orden')
             cargarDatos()
         } catch (e) {
-            toast.error("No se pudo asignar la orden")
+            toast.error('No se pudo asignar la orden')
         }
     }
 
@@ -159,7 +163,7 @@ export default function Picking() {
                                          <Badge texto="Pendiente" variante="default" />}
                                     </div>
                                     <div style={{ fontSize: '0.85rem', color: 'var(--text-400)' }}>
-                                        Asignado a: {o.operario_id ? (o.operario_id === usuario.id ? 'Tí (Yo)' : `ID ${o.operario_id}`) : 'Nadie (Libre)'}
+                                        Asignado a: {o.operario_cod || 'Nadie (Libre)'}
                                     </div>
                                     {o.estado === 'pendiente' && !o.operario_id && (
                                         <button className="btn-outline" style={{ width: '100%', marginTop: '12px', padding: '4px' }} onClick={(e) => {
@@ -197,10 +201,10 @@ export default function Picking() {
                                     }}>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '4px' }}>
-                                                Producto ID: {l.producto_id}
+                                                {l.articulo_cod || l.producto_id}
                                             </div>
                                             <div style={{ display: 'flex', gap: '12px', color: 'var(--text-300)', fontSize: '0.9rem' }}>
-                                                <span>Ubicación Origen: <strong>{l.ubicacion_origen_id || 'Cualquiera'}</strong></span>
+                                                <span>Ubicación: <strong>{l.ubicacion_origen || 'Cualquiera'}</strong></span>
                                                 <span>Estado: <Badge texto={l.estado} variante={l.estado === 'completada' ? 'success' : 'warning'} /></span>
                                             </div>
                                         </div>
@@ -216,7 +220,7 @@ export default function Picking() {
                                                         type="number" 
                                                         defaultValue={l.cantidad_recogida} 
                                                         style={{ width: '80px', height: '40px', fontSize: '1.2rem', textAlign: 'center' }}
-                                                        onBlur={(e) => marcarRecogida(l.id, parseInt(e.target.value))}
+                                                        onBlur={(e) => marcarRecogida(l.id, parseFloat(e.target.value))}
                                                     />
                                                     <button className="btn-accent" style={{ height: '40px' }} onClick={() => marcarRecogida(l.id, l.cantidad_solicitada)}>
                                                         Todo OK
@@ -229,7 +233,7 @@ export default function Picking() {
                             </div>
 
                             {/* Panel inferior completado */}
-                            {activa.estado !== 'completado' && activa.operario_id === usuario.id && (
+                            {activa.estado !== 'completado' && activa.operario_cod === (usuario.email || String(usuario.id)) && (
                                 <div style={{ position: 'sticky', bottom: 0, padding: '24px', background: 'var(--bg-900)', borderTop: '1px solid var(--border)', marginTop: '24px', textAlign: 'right' }}>
                                     <button className="btn-accent" style={{ fontSize: '1.1rem', padding: '12px 24px' }} onClick={finalizarOrden}>
                                         🏁 Finalizar Picking y Reservar Stock
@@ -274,7 +278,7 @@ export default function Picking() {
                                         const nl = [...formLineas]; nl[idx].producto_id = e.target.value; setFormLineas(nl)
                                     }}>
                                         <option value="">Producto...</option>
-                                        {productosCat.map(p => <option key={p.id} value={p.id}>{p.sku}</option>)}
+                                    {productosCat.map(p => <option key={p.sku} value={p.sku}>{p.sku}</option>)}
                                     </select>
                                     
                                     <input type="number" required min="1" placeholder="Cant." value={l.cantidad_solicitada} onChange={e => {
@@ -285,8 +289,11 @@ export default function Picking() {
                                         const nl = [...formLineas]; nl[idx].ubicacion_id = e.target.value; setFormLineas(nl)
                                     }}>
                                         <option value="">Cualquier Ubic.</option>
-                                        {stockDir.filter(s => s.producto_id === parseInt(l.producto_id)).map(st => (
-                                            <option key={st.id} value={st.ubicacion_id}>Ubic {st.ubicacion?.codigo} (Stock: {st.cantidad})</option>
+                                        {/* stockDir contiene entradas con articulo_cod (str) */}
+                                        {stockDir.filter(s => s.articulo_cod === l.producto_id).map(st => (
+                                            <option key={`${st.articulo_cod}-${st.ubicacion}`} value={st.ubicacion}>
+                                                Ubic {st.ubicacion} (Stock: {st.cantidad})
+                                            </option>
                                         ))}
                                     </select>
                                     <button type="button" className="btn-ghost" style={{ color: 'var(--red)' }} onClick={() => setFormLineas(formLineas.filter((_, i) => i !== idx))}>X</button>

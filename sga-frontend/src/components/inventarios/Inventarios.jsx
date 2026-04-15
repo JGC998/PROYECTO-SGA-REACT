@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getInventarios, crearInventario, actualizarLineaInventario, cerrarInventario } from '../../api/inventarios'
-import { getZonas } from '../../api/almacenes' // En este backend mock, habría que conseguir las zonas
+import { getAlmacenes } from '../../api/almacenes'
 import { getProductos } from '../../api/productos'
 import { useAuth } from '../../hooks/useAuth'
 import EstadoCarga from '../comunes/EstadoCarga'
@@ -18,8 +18,8 @@ export default function Inventarios() {
     
     // Modal Creación
     const [modalCrear, setModalCrear] = useState(false)
-    const [formInv, setFormInv] = useState({ zona_id: '' })
-    const [zonas, setZonas] = useState([])
+    const [formInv, setFormInv] = useState({ almacen_cod: '' })
+    const [almacenes, setAlmacenes] = useState([])
     const [productos, setProductos] = useState([])
 
     const cargar = async () => {
@@ -43,9 +43,8 @@ export default function Inventarios() {
 
     const cargarFormDependencias = async () => {
         try {
-            // Mock: Idealmente llamaríamos a todos los almacenes o zonas, 
-            // no tenemos GET /zonas sin almacenId. Lo saltaremos o simularemos para simplificar
-            // por ahora dejamos el form manual sin zonas si falla
+            const alms = await getAlmacenes()
+            setAlmacenes(alms)
         } catch(e) {}
     }
 
@@ -57,11 +56,10 @@ export default function Inventarios() {
     const handleCrear = async (e) => {
         e.preventDefault()
         try {
-            const res = await crearInventario({
-                codigo: `INV-${Date.now()}`,
+            await crearInventario({
+                almacen_cod: formInv.almacen_cod || null,
                 responsable_id: usuario.id,
-                zona_id: formInv.zona_id ? parseInt(formInv.zona_id) : null,
-                lineas: [] // Inicialmente vacío. El backend o supervisor añadirá las líneas a contar, o lo haremos ciego 100%.
+                lineas: []
             })
             toast.success("Ronda de Inventario creada")
             setModalCrear(false)
@@ -73,7 +71,7 @@ export default function Inventarios() {
 
     const guardarLineaFisica = async (lineaId, cantFisica) => {
         try {
-            await actualizarLineaInventario(activa.id, lineaId, cantFisica)
+            await actualizarLineaInventario(activa.id, lineaId, parseFloat(cantFisica))
             toast.success("Conteo registrado")
             cargar()
         } catch(err) {
@@ -100,7 +98,7 @@ export default function Inventarios() {
                     <p className="page-subtitle">Verifica el stock real contra el stock del SGA para corregir discrepancias.</p>
                 </div>
                 {(isAdmin || isSupervisor) && (
-                    <button className="btn-accent" onClick={() => { setFormInv({zona_id:''}); setModalCrear(true); }}>
+                    <button className="btn-accent" onClick={() => { setFormInv({almacen_cod:''}); setModalCrear(true); }}>
                         + Nueva Ronda de Conteo
                     </button>
                 )}
@@ -132,9 +130,9 @@ export default function Inventarios() {
                                         <span style={{ fontWeight: 'bold' }}>{i.codigo}</span>
                                         {i.estado === 'cerrado' ? <Badge texto="Cerrado" variante="success" /> : <Badge texto="Abierto" variante="warning" />}
                                     </div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-400)' }}>
-                                        {format(new Date(i.creado_en), 'dd/MM/yyyy HH:mm')}
-                                    </div>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-400)', fontFamily: 'monospace' }}>
+                                        {i.almacen_cod || 'Almacén no especificado'}
+                                    </span>
                                 </button>
                             ))}
                         </div>
@@ -180,7 +178,7 @@ export default function Inventarios() {
                                             const pr = productos.find(p => p.id === l.producto_id)
                                             return (
                                                 <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ padding: '12px' }}>Ubic ID: {l.ubicacion_id}</td>
+                                                    <td style={{ padding: '12px', fontFamily: 'monospace', color: 'var(--accent)', fontSize: '0.9rem' }}>{l.articulo_cod || l.producto_id}</td>
                                                     <td style={{ padding: '12px' }}>
                                                         <div style={{ fontWeight: 'bold' }}>{pr?.sku || l.producto_id}</div>
                                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-400)' }}>{pr?.nombre}</div>
@@ -194,10 +192,10 @@ export default function Inventarios() {
                                                                 type="number" min="0" 
                                                                 defaultValue={l.cantidad_fisica === null ? '' : l.cantidad_fisica}
                                                                 onBlur={e => {
-                                                                    if(e.target.value !== '') guardarLineaFisica(l.id, parseInt(e.target.value))
+                                                                    if(e.target.value !== '') guardarLineaFisica(l.id, parseFloat(e.target.value))
                                                                 }}
                                                                 onKeyDown={e => {
-                                                                    if(e.key === 'Enter' && e.target.value !== '') guardarLineaFisica(l.id, parseInt(e.target.value))
+                                                                    if(e.key === 'Enter' && e.target.value !== '') guardarLineaFisica(l.id, parseFloat(e.target.value))
                                                                 }}
                                                                 style={{ width: '80px', textAlign: 'center', fontWeight: 'bold' }}
                                                             />
@@ -222,9 +220,10 @@ export default function Inventarios() {
             <Modal isOpen={modalCrear} onClose={() => setModalCrear(false)} titulo="Planificar Ronda de Inventario">
                 <form onSubmit={handleCrear} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>
-                        <label>Zona Específica (Opcional)</label>
-                        <select value={formInv.zona_id} onChange={e => setFormInv({...formInv, zona_id: e.target.value})}>
-                            <option value="">Todo el Almacén Ppal.</option>
+                        <label>Almacén (Opcional)</label>
+                        <select value={formInv.almacen_cod} onChange={e => setFormInv({...formInv, almacen_cod: e.target.value})}>
+                            <option value="">Todos los almacenes</option>
+                            {almacenes.map(a => <option key={a.codigo} value={a.codigo}>{a.codigo} — {a.nombre}</option>)}
                         </select>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
